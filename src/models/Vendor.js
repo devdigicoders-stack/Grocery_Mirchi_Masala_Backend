@@ -9,10 +9,10 @@ const vendorSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
-      unique: true,
+      required: false,
       lowercase: true,
-      trim: true
+      trim: true,
+      default: ''
     },
     password: {
       type: String,
@@ -25,6 +25,7 @@ const vendorSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
+      required: true,
       trim: true,
       default: ''
     },

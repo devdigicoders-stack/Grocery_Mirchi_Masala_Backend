@@ -104,6 +104,29 @@ export const markNotificationRead = async (req, res) => {
 }
 
 /**
+ * @desc    Mark all notifications as read for vendor
+ * @route   POST /api/notifications/vendor/mark-all-read
+ * @access  Private (Vendor)
+ */
+export const markAllNotificationsRead = async (req, res) => {
+  try {
+    const vendorId = req.vendor?._id || req.vendor?.id
+    if (!vendorId) {
+      return res.status(401).json({ success: false, message: 'Vendor unauthorized' })
+    }
+
+    await Notification.updateMany(
+      { $or: [{ targetType: 'all' }, { targetVendorId: vendorId }] },
+      { $addToSet: { readBy: vendorId } }
+    )
+
+    res.json({ success: true, message: 'All notifications marked as read' })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+}
+
+/**
  * @desc    Send custom notification / broadcast (Admin)
  * @route   POST /api/notifications/broadcast
  * @access  Private (Admin)

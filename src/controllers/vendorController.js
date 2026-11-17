@@ -67,30 +67,33 @@ export const getVendorById = async (req, res) => {
  */
 export const createVendor = async (req, res) => {
   try {
-    const { name, email, password, phone, address, status } = req.body
+    const { name, email, phone, password, address, status } = req.body
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Vendor name is required' })
     }
 
-    if (!email || !email.trim()) {
-      return res.status(400).json({ success: false, message: 'Vendor email (Login ID) is required' })
+    const cleanPhone = (phone || '').trim()
+    if (!cleanPhone) {
+      return res.status(400).json({ success: false, message: 'Vendor mobile number (Login ID) is required' })
     }
 
-    const normalizedEmail = email.toLowerCase().trim()
-
-    // Check if email already registered
-    const existingVendor = await Vendor.findOne({ email: normalizedEmail })
+    // Check if mobile number already registered
+    const existingVendor = await Vendor.findOne({ phone: cleanPhone })
     if (existingVendor) {
-      // If a file was uploaded, clean it up since creation failed
       if (req.file) {
         try { fs.unlinkSync(req.file.path) } catch (e) { /* ignore */ }
       }
       return res.status(400).json({
         success: false,
-        message: `Vendor with email '${normalizedEmail}' is already registered`
+        message: `Vendor with mobile number '${cleanPhone}' is already registered`
       })
     }
+
+    // Normalized email if passed or auto-generated fallback
+    const normalizedEmail = (email && email.trim())
+      ? email.toLowerCase().trim()
+      : `vendor_${cleanPhone.replace(/\D/g, '')}@mirchmasala.local`
 
     // Handle profile image from multer upload or direct path
     let profileImage = ''
@@ -108,7 +111,7 @@ export const createVendor = async (req, res) => {
       email: normalizedEmail,
       password: vendorPassword,
       profileImage,
-      phone: phone ? phone.trim() : '',
+      phone: cleanPhone,
       address: address ? address.trim() : '',
       status: status || 'Active'
     })
@@ -143,10 +146,26 @@ export const updateVendor = async (req, res) => {
 
     const { name, email, password, phone, address, status } = req.body
 
+    // Check if updating to a mobile number that belongs to another vendor
+    if (phone && phone.trim() !== vendor.phone) {
+      const cleanPhone = phone.trim()
+      const phoneExists = await Vendor.findOne({ phone: cleanPhone, _id: { $ne: vendor._id } })
+      if (phoneExists) {
+        if (req.file) {
+          try { fs.unlinkSync(req.file.path) } catch (e) { /* ignore */ }
+        }
+        return res.status(400).json({
+          success: false,
+          message: `Mobile number '${cleanPhone}' is already in use by another vendor`
+        })
+      }
+      vendor.phone = cleanPhone
+    }
+
     // Check if updating to an email that belongs to another vendor
     if (email && email.toLowerCase().trim() !== vendor.email) {
       const normalizedEmail = email.toLowerCase().trim()
-      const emailExists = await Vendor.findOne({ email: normalizedEmail })
+      const emailExists = await Vendor.findOne({ email: normalizedEmail, _id: { $ne: vendor._id } })
       if (emailExists) {
         if (req.file) {
           try { fs.unlinkSync(req.file.path) } catch (e) { /* ignore */ }
@@ -161,7 +180,6 @@ export const updateVendor = async (req, res) => {
 
     if (name) vendor.name = name.trim()
     if (password && password.trim()) vendor.password = password.trim()
-    if (phone !== undefined) vendor.phone = phone.trim()
     if (address !== undefined) vendor.address = address.trim()
     if (status) vendor.status = status
 
@@ -300,23 +318,33 @@ export const sendBulkApkInvite = async (req, res) => {
 }
 
 /**
- * @desc    Vendor Mobile App Login (Email + Plain Password)
+ * @desc    Vendor Mobile App Login (Mobile Number or Email + Password)
  * @route   POST /api/vendors/login
  * @access  Public (For Flutter Android App)
  */
 export const vendorLogin = async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { phone, mobile, email, identifier, loginId: rawLoginId, password } = req.body
+    const loginId = (phone || mobile || identifier || rawLoginId || email || '').toString().trim()
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Please provide email and password' })
+    if (!loginId || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide mobile number and password' })
     }
 
-    const normalizedEmail = email.toLowerCase().trim()
-    const vendor = await Vendor.findOne({ email: normalizedEmail })
+    const cleanInput = loginId
+    const phoneNoPrefix = cleanInput.replace(/^(\+91|0)/, '').trim()
+
+    // Find vendor by phone or email
+    const vendor = await Vendor.findOne({
+      $or: [
+        { phone: cleanInput },
+        { phone: phoneNoPrefix },
+        { email: cleanInput.toLowerCase() }
+      ]
+    })
 
     if (!vendor) {
-      return res.status(401).json({ success: false, message: 'Invalid vendor email or password' })
+      return res.status(401).json({ success: false, message: 'Invalid mobile number or password' })
     }
 
     if (vendor.status !== 'Active') {
@@ -325,7 +353,7 @@ export const vendorLogin = async (req, res) => {
 
     // Direct plain password comparison as requested
     if (vendor.password !== password.trim()) {
-      return res.status(401).json({ success: false, message: 'Invalid vendor email or password' })
+      return res.status(401).json({ success: false, message: 'Invalid mobile number or password' })
     }
 
     const token = generateToken(vendor._id, 'vendor')
@@ -337,8 +365,8 @@ export const vendorLogin = async (req, res) => {
       vendor: {
         _id: vendor._id,
         name: vendor.name,
-        email: vendor.email,
         phone: vendor.phone,
+        email: vendor.email,
         address: vendor.address,
         profileImage: vendor.profileImage,
         status: vendor.status

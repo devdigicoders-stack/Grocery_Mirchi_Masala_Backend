@@ -98,23 +98,31 @@ export const registerAdmin = async (req, res) => {
  */
 export const loginAdmin = async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { email, loginId, identifier, username, phone, password } = req.body
+    const inputIdentifier = (email || loginId || identifier || username || phone || '').toString().trim()
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Please provide email and password' })
+    if (!inputIdentifier || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide login identifier and password' })
     }
 
     // Auto-seed if database is brand new
     await seedDefaultAdminIfNeeded()
 
-    const admin = await Admin.findOne({ email: email.toLowerCase().trim() })
+    const admin = await Admin.findOne({
+      $or: [
+        { email: inputIdentifier.toLowerCase() },
+        { phone: inputIdentifier },
+        { phone: inputIdentifier.replace(/^(\+91|0)/, '').trim() },
+        { name: new RegExp(`^${inputIdentifier}$`, 'i') }
+      ]
+    })
     if (!admin) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' })
+      return res.status(401).json({ success: false, message: 'Invalid credentials or password' })
     }
 
     const isMatch = await admin.matchPassword(password)
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' })
+      return res.status(401).json({ success: false, message: 'Invalid credentials or password' })
     }
 
     const token = generateToken(admin._id)

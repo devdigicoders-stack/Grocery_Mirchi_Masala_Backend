@@ -3,6 +3,7 @@ import {
   getAdminNotifications,
   getVendorNotifications,
   markNotificationRead,
+  markAllNotificationsRead,
   broadcastNotification,
   saveFcmToken,
   deleteFcmToken,
@@ -19,6 +20,7 @@ router.post('/broadcast', protectAdmin, broadcastNotification)
 
 // Vendor Routes
 router.get('/vendor', protectVendor, getVendorNotifications)
+router.post('/vendor/mark-all-read', protectVendor, markAllNotificationsRead)
 router.post('/:id/read', protectVendor, markNotificationRead)
 router.post('/fcm-token', protectVendor, saveFcmToken)
 router.post('/fcm-token/remove', protectVendor, deleteFcmToken)
