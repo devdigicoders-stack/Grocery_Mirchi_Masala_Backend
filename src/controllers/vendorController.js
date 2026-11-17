@@ -5,7 +5,6 @@ import Vendor from '../models/Vendor.js'
 import Demand from '../models/Demand.js'
 import Quotation from '../models/Quotation.js'
 import Order from '../models/Order.js'
-import EmailLog from '../models/EmailLog.js'
 import { generateToken } from '../middlewares/authMiddleware.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -255,25 +254,19 @@ export const sendVendorApkInvite = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Vendor not found' })
     }
 
-    // In production, integrate Email/SMS/WhatsApp dispatch here
     vendor.lastInviteSentAt = new Date()
     await vendor.save()
 
-    // Log to EmailLog
-    await EmailLog.create({
-      vendorId: vendor._id,
-      vendorName: vendor.name,
-      vendorEmail: vendor.email,
-      demandCode: 'General',
-      emailType: 'APK App Invite',
-      subject: 'Mirch Masala Grocery Shop - Vendor B2B App Download Link & Credentials',
-      content: `Dear ${vendor.name},\n\nPlease find your access to the Mirch Masala B2B Reverse Auction Android App.\nLogin Email: ${vendor.email}\nApp Password: ${vendor.password}\nDownload APK: https://mirchmasala.com/downloads/vendor-app.apk\n\nRegards,\nMirch Masala Team`,
-      status: 'Sent'
-    }).catch(() => null)
-
     res.json({
       success: true,
-      message: `APK invite & credentials (Email: ${vendor.email}, Password: ${vendor.password}) sent to ${vendor.name}`
+      message: `APK invite & credentials prepared for ${vendor.name} (${vendor.phone})`,
+      vendor: {
+        _id: vendor._id,
+        name: vendor.name,
+        phone: vendor.phone,
+        password: vendor.password,
+        apkUrl: 'https://grocery-mirchi-masala-backend.onrender.com/downloads/vendor-app.apk'
+      }
     })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })
@@ -294,23 +287,10 @@ export const sendBulkApkInvite = async (req, res) => {
 
     await Vendor.updateMany({ status: 'Active' }, { lastInviteSentAt: new Date() })
 
-    // Log to EmailLog for each vendor
-    for (const v of activeVendors) {
-      await EmailLog.create({
-        vendorId: v._id,
-        vendorName: v.name,
-        vendorEmail: v.email,
-        demandCode: 'General',
-        emailType: 'APK App Invite',
-        subject: 'Mirch Masala Grocery Shop - Vendor B2B App Download Link & Credentials',
-        content: `Dear ${v.name},\n\nPlease find your access to the Mirch Masala B2B Reverse Auction Android App.\nLogin Email: ${v.email}\nApp Password: ${v.password}\nDownload APK: https://mirchmasala.com/downloads/vendor-app.apk\n\nRegards,\nMirch Masala Team`,
-        status: 'Sent'
-      }).catch(() => null)
-    }
-
     res.json({
       success: true,
-      message: `APK download link successfully dispatched to all ${activeVendors.length} active vendors`
+      message: `APK download link & credentials ready for ${activeVendors.length} active vendors`,
+      apkUrl: 'https://grocery-mirchi-masala-backend.onrender.com/downloads/vendor-app.apk'
     })
   } catch (error) {
     res.status(500).json({ success: false, message: error.message })

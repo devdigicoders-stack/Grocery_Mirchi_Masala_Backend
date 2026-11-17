@@ -197,7 +197,10 @@ export const updateAdminProfile = async (req, res) => {
 
     // Check if new email is already taken by another admin
     if (email && email.toLowerCase().trim() !== admin.email) {
-      const emailExists = await Admin.findOne({ email: email.toLowerCase().trim() })
+      const emailExists = await Admin.findOne({
+        _id: { $ne: admin._id },
+        email: email.toLowerCase().trim()
+      })
       if (emailExists) {
         return res.status(400).json({ success: false, message: 'Email address is already in use by another account' })
       }
@@ -210,11 +213,20 @@ export const updateAdminProfile = async (req, res) => {
     if (address !== undefined) admin.address = address.trim()
     if (gstin !== undefined) admin.gstin = gstin.trim()
 
+    // Allow updating password directly from profile update if provided
+    const passToChange = newPassword || password
+    if (passToChange && passToChange.trim().length > 0) {
+      if (passToChange.trim().length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' })
+      }
+      admin.password = passToChange.trim()
+    }
+
     const updatedAdmin = await admin.save()
 
     res.json({
       success: true,
-      message: 'Shop details and profile updated successfully',
+      message: 'Shop details and credentials updated successfully',
       data: {
         _id: updatedAdmin._id,
         name: updatedAdmin.name,
