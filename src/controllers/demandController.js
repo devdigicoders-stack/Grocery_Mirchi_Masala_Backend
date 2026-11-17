@@ -3,6 +3,7 @@ import Quotation from '../models/Quotation.js'
 import Vendor from '../models/Vendor.js'
 import EmailLog from '../models/EmailLog.js'
 import { broadcastRealtimeEvent } from '../utils/realtime.js'
+import { sendPushToAllVendors, sendPushToVendor } from '../services/notificationService.js'
 
 /**
  * Helper to auto-close bidding if deadline has passed
@@ -165,8 +166,23 @@ export const createDemand = async (req, res) => {
       console.warn('Real-time broadcast warning:', sseErr.message)
     }
 
-    // Automatically notify all active vendors and create EmailLogs in MongoDB
+    // Automatically notify all active vendors via Push Notification & EmailLogs
     try {
+      // 1. Send Mobile Push Notification (FCM + Real-Time SSE)
+      sendPushToAllVendors({
+        title: `🚨 New Demand Live: ${demandCode}`,
+        body: `${formattedItems.length} grocery items required. Submit your lowest unit rates now!`,
+        data: {
+          demandId: String(newDemand._id),
+          demandCode: newDemand.demandCode,
+          deadlineAt: newDemand.deadlineAt?.toISOString() || '',
+          itemCount: String(formattedItems.length)
+        },
+        type: 'new_demand',
+        sentByAdminId: req.admin?._id
+      }).catch((pErr) => console.warn('Push notification warning:', pErr.message))
+
+      // 2. Log in EmailLog
       const activeVendors = await Vendor.find({ status: 'Active' })
       if (activeVendors.length > 0) {
         const itemsSummary = formattedItems
@@ -337,6 +353,19 @@ export const sendBulkReminder = async (req, res) => {
     })
 
     for (const v of pendingVendors) {
+      // 1. Send Mobile Push Notification to each pending vendor
+      sendPushToVendor(v._id, {
+        title: `⏰ Bidding Reminder: Demand ${demand.demandCode}`,
+        body: `48-Hour Live Bidding window is active! Submit your unit rates before deadline.`,
+        data: {
+          demandId: String(demand._id),
+          demandCode: demand.demandCode
+        },
+        type: 'bidding_reminder',
+        sentByAdminId: req.admin?._id
+      }).catch(() => null)
+
+      // 2. Create EmailLog
       await EmailLog.create({
         demandId: demand._id,
         demandCode: demand.demandCode,

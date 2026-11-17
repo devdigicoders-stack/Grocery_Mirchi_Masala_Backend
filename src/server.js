@@ -18,6 +18,10 @@ import quotationRoutes from './routes/quotationRoutes.js'
 import allocationRoutes from './routes/allocationRoutes.js'
 import reportRoutes from './routes/reportRoutes.js'
 import emailLogRoutes from './routes/emailLogRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
+
+// Import Firebase notification initializer
+import { initializeFirebase } from './services/notificationService.js'
 
 // Import error middlewares
 import { notFound, errorHandler } from './middlewares/errorHandler.js'
@@ -28,6 +32,9 @@ dotenv.config()
 
 // Connect to MongoDB Database
 connectDB()
+
+// Initialize Firebase Admin for FCM Push Notifications
+initializeFirebase()
 
 const app = express()
 
@@ -62,6 +69,7 @@ app.use('/api/quotations', quotationRoutes)
 app.use('/api/allocations', allocationRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/email-logs', emailLogRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 // Error handling middlewares
 app.use(notFound)

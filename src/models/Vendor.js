@@ -37,6 +37,10 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       enum: ['Active', 'Inactive'],
       default: 'Active'
+    },
+    fcmTokens: {
+      type: [String],
+      default: []
     }
   },
   {

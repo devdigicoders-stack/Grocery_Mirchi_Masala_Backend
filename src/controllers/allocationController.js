@@ -3,6 +3,7 @@ import Demand from '../models/Demand.js'
 import Quotation from '../models/Quotation.js'
 import Vendor from '../models/Vendor.js'
 import EmailLog from '../models/EmailLog.js'
+import { sendPushToVendor } from '../services/notificationService.js'
 
 /**
  * @desc    Get allocation preview & auto-calculated L1 results for a demand
@@ -326,6 +327,18 @@ export const confirmAllocations = async (req, res) => {
         status: 'Approved'
       })
       createdOrders.push(order)
+
+      // Send Push Notification to winning vendor
+      sendPushToVendor(vOrder.vendorId, {
+        title: `🎉 Order Won: Demand ${demand.demandCode}`,
+        body: `Congratulations ${vOrder.vendorName}! You have won allocation for ${vOrder.items.length} items (Total ₹${vOrder.totalOrderAmount.toLocaleString('en-IN')}).`,
+        data: {
+          orderId: String(order._id),
+          demandId: String(demand._id),
+          demandCode: demand.demandCode
+        },
+        type: 'order_allocated'
+      }).catch((err) => console.warn('Order push notification error:', err.message))
     }
 
     // Mark demand status as Allocated
